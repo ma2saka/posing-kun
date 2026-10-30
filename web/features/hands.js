@@ -1,6 +1,7 @@
 // 手の形: 形の名前と握り具合で指の関節を決める。人形ごとの状態は stateHooks の 'hands' で保存する。
 import { Figure } from '../figure.js';
 import { OPEN, poseHand } from '../hands.js';
+import { makeHeld } from '../held.js';
 
 const FIST = [88, 100, 60];
 // 指 [付け根, 第 2, 第 1 関節, 開き]、親指 [離す, 前へ回す, 付け根, 中, 先]
@@ -43,6 +44,15 @@ export const SHAPES = {
     label: '手をつく', thumb: [20, 0, 0, 0, 0],
     index: [0, 0, 0, 1], middle: [0, 0, 0, 0], ring: [0, 0, 0, -1], pinky: [0, 0, 0, -2],
   },
+  // held: 手に持たせる物（held.js）
+  ball: {
+    label: 'ボールを握る', held: 'ball', thumb: [55, 70, 0, 10, 15],
+    index: [35, 40, 30, 12], middle: [35, 40, 30, 2], ring: [35, 40, 30, -8], pinky: [35, 40, 30, -16],
+  },
+  gun: {
+    label: '銃を握る', held: 'gun', thumb: [40, 60, 0, 10, 20],
+    index: [5, 5, 0, 0], middle: [75, 85, 40, 0], ring: [75, 85, 40, -2], pinky: [75, 85, 40, -4],
+  },
   claw: {
     label: '爪を立てる', thumb: [45, 35, 0, 30, 45],
     index: [15, 75, 55, 10], middle: [15, 75, 55, 2], ring: [15, 75, 55, -5], pinky: [15, 75, 55, -12],
@@ -53,7 +63,7 @@ const ALIAS = new Map([
   ...Object.entries(SHAPES).flatMap(([k, v]) => [[k, k], [v.label, k]]),
   ...Object.entries({
     paper: 'open', relax: 'relaxed', natural: 'relaxed', rock: 'fist', pointing: 'point', scissors: 'peace', v: 'peace',
-    hold: 'grip', ぐー: 'fist', ぱー: 'open', ちょき: 'peace', ピース: 'peace', 握り拳: 'fist', 拳: 'fist', こぶし: 'fist',
+    hold: 'grip', ボール: 'ball', 銃: 'gun', pistol: 'gun', ピストル: 'gun', ぐー: 'fist', ぱー: 'open', ちょき: 'peace', ピース: 'peace', 握り拳: 'fist', 拳: 'fist', こぶし: 'fist',
     げんこつ: 'fist', 開く: 'open', 握り: 'grip', つまみ: 'pinch', 爪: 'claw',
     thumbs_up: 'thumbsup', good: 'thumbsup', いいね: 'thumbsup', グッド: 'thumbsup', 親指を立てる: 'thumbsup', キツネ: 'fox', きつね: 'fox', 狐のかたち: 'fox', 人差し指: 'point', 指さし: 'point',
   }),
@@ -98,10 +108,26 @@ export default function init({ figs, apply, panel, pushUndo, persist, camera, ca
   const state = new Map();
   const relaxed = { shape: 'relaxed', amount: 1 };
   const get = (fig) => state.get(fig) ?? { left: relaxed, right: relaxed };
+  // 持たせた物は手首の Group の子。体型を変えると骨が作り直されるので、そのたびに作り直す
+  const held = new Map(); // fig → { left, right: { kind, wrist, group } }
+  function hold(fig, side, kind) {
+    const per = held.get(fig) ?? {};
+    held.set(fig, per);
+    const wrist = fig.j[`${side}Wrist`], cur = per[side];
+    if (!cur && !kind) return;
+    if (cur?.kind === kind && cur.wrist === wrist && cur.k === fig.b.hand) return;
+    cur?.group.removeFromParent();
+    per[side] = null;
+    if (!kind) return;
+    const group = makeHeld(kind, side, fig.b.hand);
+    wrist.add(group);
+    per[side] = { kind, wrist, group, k: fig.b.hand };
+  }
   function setHand(fig, side, h) {
     const P = blend(h);
     state.set(fig, { ...get(fig), [side]: h });
     poseHand(fig, side, P);
+    hold(fig, side, SHAPES[h.shape].held);
     fig.root.updateMatrixWorld(true);
   }
   // 床についている人形は指を伸ばしても床につけたままにする
