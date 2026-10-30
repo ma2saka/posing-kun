@@ -26,13 +26,6 @@ cd web && python3 -m http.server 8000
 # http://localhost:8000/
 ```
 
-## 仕組み
-
-- 骨格と関節の角度: `web/figure.js`（関節は意味の付いた 3 値。肩甲帯の連動は `web/girdle.js`）
-- 人形の形: `web/doll.js`。部品ごとに閉じた形を距離場から面にする（`web/skin/sdf.js`）。女性の胴は高さごとの断面を積み重ね、背骨の曲線に沿って曲げる。股関節まわりは姿勢ごとに Worker（`web/doll-worker.js`）で面を取り直す
-- 解剖: 骨と筋の形（`web/skin/anatomy.js`）を人形の関節に結びつける（`web/skin/parts.js`、`worker.js`、`mesh.js`）。肩をまたぐ筋は姿勢ごとに張り直す
-- 機能は `web/features/*.js` の `init(ctx)`。操作列は `web/ops.js` の `apply`（ブラウザのコンソールから `pp.apply([...])` でも使える）
-
 ## ライセンス
 
 MIT
