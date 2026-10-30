@@ -118,8 +118,8 @@ function bodyColliders(fig, THREE) {
 export default function init(ctx) {
   const { THREE, figs } = ctx;
   const KEY = 'posing-kun.hair';
-  let on = true;
-  try { on = localStorage.getItem(KEY) !== '0'; } catch { /* 既定は表示 */ }
+  let on = false;
+  try { on = localStorage.getItem(KEY) === '1'; } catch { /* 初めは非表示 */ }
   const ITER = 10;
   const q = new THREE.Vector3(), d = new THREE.Vector3();
 
