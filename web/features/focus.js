@@ -43,11 +43,18 @@ export default function init(ctx) {
 
   const fs = document.createElement('fieldset');
   fs.innerHTML = '<legend>人形</legend>';
+  // 表示する人形は覚えておく。初めは男性だけ
+  const KEY = 'posing-kun.visible';
+  let shown = { female: false, male: true };
+  try { shown = { ...shown, ...JSON.parse(localStorage.getItem(KEY)) }; } catch { /* 初めの表示 */ }
   for (const [who, f] of Object.entries(figs)) {
-    const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: true });
+    const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: shown[who] ?? true });
     box.dataset.who = who;
+    f.root.visible = box.checked;
     box.addEventListener('change', () => {
       f.root.visible = box.checked;
+      shown[who] = box.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(shown)); } catch { /* 保存できなくても動く */ }
       if (!box.checked && (focus === f || ctx.getSelected()?.fig === f)) ctx.select(null);
     });
     const l = document.createElement('label');

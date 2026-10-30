@@ -74,8 +74,9 @@ function load() {
 // ---- カメラ
 function center() {
   const c = new THREE.Vector3();
-  for (const f of Object.values(figs)) c.add(f.part('hips'));
-  return c.multiplyScalar(0.5);
+  const fs = Object.values(figs).filter((f) => f.root.visible);
+  for (const f of fs) c.add(f.part('hips'));
+  return fs.length ? c.multiplyScalar(1 / fs.length) : c.set(0, 1, 0);
 }
 const VIEWS = { front: [0, 10], high: [0, 50], low: [0, -25], side: [90, 8], diag: [40, 18] };
 function setView(name) {
@@ -259,6 +260,7 @@ const ctx = {
 };
 for (const init of features) init(ctx);
 load();
+setView('diag');
 
 renderer.setAnimationLoop(() => {
   orbit.update();
