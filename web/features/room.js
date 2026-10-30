@@ -55,7 +55,9 @@ export default function init(ctx) {
   };
   del.addEventListener('click', remove);
   addEventListener('keydown', (e) => {
-    if (e.key === 'Delete' && !(e.target instanceof HTMLInputElement)) remove();
+    if (e.key !== 'Delete' || e.target instanceof HTMLInputElement) return;
+    const p = ctx.getSelectedProp();
+    if (p && confirm(`${p.label}を削除する?`)) remove();
   });
 
   const show = (p) => {
