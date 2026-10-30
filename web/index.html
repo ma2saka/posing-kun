@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>posing-kun</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font: 13px Meiryo, "Yu Gothic", sans-serif; color: #222; background: #fff; }
+  #app { display: grid; grid-template-columns: 1fr; height: 100%; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  button { font: inherit; padding: 3px 10px; border: 1px solid #999; background: #f4f4f4; cursor: pointer; }
+  button:disabled { color: #aaa; }
+  #stage { position: relative; min-width: 0; }
+  #view { width: 100%; height: 100%; display: block; }
+  #bar { position: absolute; top: 6px; left: 6px; right: 6px; display: flex; gap: 4px; flex-wrap: wrap; pointer-events: none; }
+  #bar > * { pointer-events: auto; }
+  #bar .grp { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px; background: rgba(255,255,255,.9); border: 1px solid #bbb; }
+  #bar .lbl { color: #666; font-size: 12px; margin-right: 3px; }
+  #sel { position: absolute; left: 6px; bottom: 6px; background: rgba(255,255,255,.9); border: 1px solid #bbb; padding: 4px 6px; font-family: monospace; font-size: 12px; }
+  #panel { position: absolute; top: 40px; right: 6px; width: 230px; max-height: calc(100% - 80px); overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  #panel:empty { display: none; }
+  #panel fieldset { margin: 0; background: rgba(255,255,255,.92); border: 1px solid #bbb; padding: 4px 6px 6px; }
+  #panel legend { padding: 0 3px; }
+  #panel label { display: flex; gap: 4px; align-items: center; justify-content: space-between; margin: 2px 0; }
+  #panel select, #panel input[type=range] { font: inherit; max-width: 130px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <section id="stage">
+    <canvas id="view"></canvas>
+    <div id="bar">
+      <span class="grp"><span class="lbl">カメラ</span><button data-cam="front">正面</button><button data-cam="high">上から</button><button data-cam="low">下から</button><button data-cam="side">横</button><button data-cam="diag">斜め</button></span>
+      <span class="grp" id="barView"><span class="lbl">表示</span></span>
+      <span class="grp"><span class="lbl">操作</span><button id="mode">ギズモ: 回転</button><button id="undo">元に戻す</button><button id="reset">初期配置</button></span>
+      <span class="grp"><span class="lbl">ファイル</span><button id="save">JSON保存</button><button id="load">JSON読込</button><button id="png">PNG保存</button></span>
+      <input id="file" type="file" accept=".json" hidden>
+    </div>
+    <div id="panel"></div>
+    <div id="sel">人形の部位をクリックすると関節を選択（Esc で解除）</div>
+  </section>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
