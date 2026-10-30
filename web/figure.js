@@ -136,6 +136,26 @@ export const outlineMaterial = (push = 0, disp = false) => new THREE.ShaderMater
 });
 const outlineMat = outlineMaterial();
 
+// 表面の格子模様。部品の座標（大きさだけ実寸に直す）で GRID m ごとに線を引くので、線は部品と一緒に動く。遠くて細かくなりすぎる線は消す
+const GRID = 0.04;
+export function gridded(mat) {
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGrid;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGrid = transformed * vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz));');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGrid;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        vec3 gq = vGrid / ${GRID.toFixed(3)};
+        vec3 gw = max(fwidth(gq), vec3(1e-5));
+        vec3 gl = abs(fract(gq - 0.5) - 0.5) / gw;
+        float line = 1.0 - min(min(min(gl.x, gl.y), gl.z), 1.0);
+        line *= 1.0 - smoothstep(0.12, 0.35, max(gw.x, max(gw.y, gw.z)));
+        diffuseColor.rgb *= 1.0 - 0.28 * line;`);
+  };
+  return mat;
+}
+
 export const SPHERE = new THREE.SphereGeometry(1, 32, 20);
 
 export class Figure {
@@ -157,7 +177,7 @@ export class Figure {
       const p = this.b?.curve?.pelvis ?? 0;
       if (p) this.root.matrix.multiply(tilt.makeRotationX(p * D2R));
     };
-    this.mat = new THREE.MeshToonMaterial({ color: body.color, gradientMap: gradient });
+    this.mat = gridded(new THREE.MeshToonMaterial({ color: body.color, gradientMap: gradient }));
     this.setBody(body);
     this.root.position.y = (this.b.th + this.b.sh + 0.13) * this.b.scale;
   }
@@ -419,7 +439,7 @@ export class Figure {
   }
 
   hiMat() {
-    this._hi ??= new THREE.MeshToonMaterial({ color: 0xd9a35a, gradientMap: gradient });
+    this._hi ??= gridded(new THREE.MeshToonMaterial({ color: 0xd9a35a, gradientMap: gradient }));
     return this._hi;
   }
 }
