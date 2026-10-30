@@ -8,8 +8,11 @@ const CHAIN = {
 };
 // 肘・膝のハンドル → その手足
 const POLE = { leftElbow: 'leftHand', rightElbow: 'rightHand', leftKnee: 'leftFoot', rightKnee: 'rightFoot' };
-const KINDS = [...Object.keys(CHAIN), ...Object.keys(POLE), 'hips', 'back', 'front', 'head'];
-const COLOR = { limb: 0x1f6fd1, pole: 0x6fb4ff, hips: 0xc8501e, back: 0x8a3fc1, front: 0xc0398a, head: 0x2a8f4a };
+// 手先・足先のアンカー → その手首・足首。手首・足首を選んでいる間だけ出し、引くと手首・足首の位置は保ったまま手・足の向きを変える
+const TIP = { leftHandTip: 'leftWrist', rightHandTip: 'rightWrist', leftFootTip: 'leftAnkle', rightFootTip: 'rightAnkle' };
+const TIP_SCALE = 0.7;
+const KINDS = [...Object.keys(CHAIN), ...Object.keys(POLE), ...Object.keys(TIP), 'hips', 'back', 'front', 'head'];
+const COLOR = { limb: 0x1f6fd1, pole: 0x6fb4ff, tip: 0x13a3b5, hips: 0xc8501e, back: 0x8a3fc1, front: 0xc0398a, head: 0x2a8f4a };
 // chest ローカルでの胴のハンドル。背中は肩甲骨の間、胸は胸骨の前（どちらも皮膚の外）
 const TORSO = { back: [0, 0.17, -0.15], front: [0, 0.15, 0.17] };
 const BEND = { spine: 0.45, chest: 0.55 }; // 胴の曲げを背と胸に分ける割合
@@ -38,7 +41,7 @@ export default function init(ctx) {
   const mat = (color) => new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.85 });
   const mats = Object.fromEntries(Object.entries(COLOR).map(([k, c]) => [k, mat(c)]));
   const handles = Object.values(figs).flatMap((fig) => KINDS.map((kind) => {
-    const mesh = new THREE.Mesh(geo, mats[CHAIN[kind] ? 'limb' : POLE[kind] ? 'pole' : kind]);
+    const mesh = new THREE.Mesh(geo, mats[CHAIN[kind] ? 'limb' : POLE[kind] ? 'pole' : TIP[kind] ? 'tip' : kind]);
     mesh.renderOrder = 1000;
     group.add(mesh);
     return { fig, kind, mesh };
@@ -67,8 +70,30 @@ export default function init(ctx) {
     if (TORSO[kind]) return fig.j.chest.localToWorld(V(...TORSO[kind]));
     if (POLE[kind]) return wpos(fig.j[kind]);
     if (kind === 'head') return fig.j.head.localToWorld(V(0, 0, gaze.get(fig) ?? GAZE).add(V(...EYE)));
-    return kind.endsWith('Hand') ? fig.part(kind) : wpos(fig.j[CHAIN[kind][2]]);
+    if (TIP[kind]) return tipOf(fig, TIP[kind]);
+    return wpos(fig.j[CHAIN[kind][2]]);
   };
+  // 手先（中指の先あたり）・足先（つま先）
+  const tipOf = (fig, joint) => {
+    if (joint.endsWith('Wrist')) return fig.j[joint].localToWorld(V(0, -0.17 * fig.b.hand, 0));
+    const a = wpos(fig.j[joint]), t = wpos(fig.j[joint.replace('Ankle', 'Toe')]);
+    return t.add(t.clone().sub(a).multiplyScalar(0.35));
+  };
+  // reach の目標に合わせる末端。手は手のひらの中心、足は足首
+  const endOf = (fig, limb) => (limb.endsWith('Hand') ? fig.part(limb) : wpos(fig.j[CHAIN[limb][2]]));
+  // 手足のハンドルは手首・足首を目標に解く
+  const handleGoal = (fig, limb, at) => ({ ...limbGoal(fig, limb, at), wrist: true });
+
+  // 手首・足首を回して、手先・足先を target の方へ向ける（開始時の向きからの最小の回転。可動域で丸める）
+  function aimTip(fig, target, { joint, q0, from }) {
+    const J = fig.j[joint], o = wpos(J);
+    const to = target.clone().sub(o);
+    if (to.lengthSq() < 1e-10) return;
+    const q = new THREE.Quaternion().setFromUnitVectors(from.clone().normalize(), to.normalize()).multiply(q0);
+    J.quaternion.copy(J.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q));
+    fig.setJoint(joint, fig.getJoint(joint));
+    fig.root.updateMatrixWorld(true);
+  }
 
   // ---- 解く
   // 肘・膝の今の曲がる向きを pole（hips 座標系）として取り出す。伸びきっていれば reach の既定に任せる
@@ -156,7 +181,7 @@ export default function init(ctx) {
     const r = canvas.getBoundingClientRect();
     let best = null, bd = HIT_PX;
     for (const h of handles) {
-      if (!ctx.pickable(h.fig)) continue;
+      if (!ctx.pickable(h.fig) || !h.mesh.visible) continue;
       const p = h.mesh.position.clone().project(camera);
       if (p.z > 1) continue;
       const d = Math.hypot((p.x + 1) / 2 * r.width + r.left - x, (1 - p.y) / 2 * r.height + r.top - y);
@@ -415,7 +440,7 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
     const pen0 = armPenetration(fig, limb, obs);
     if (pen0 < 1e-5) return;
     const kin = kinematics(fig, limb, twist);
-    const keep = { x: kin.read(), cost: home({ fig, kind: limb }).distanceToSquared(at) + 4 * pen0 };
+    const keep = { x: kin.read(), cost: endOf(fig, limb).distanceToSquared(at) + 4 * pen0 };
     const S = wpos(fig.j[CHAIN[limb][0]]);
     const up = V(0, 1, 0), lat = up.clone().cross(at.clone().sub(S)).normalize();
     const s = limb.startsWith('left') ? 1 : -1;
@@ -428,7 +453,7 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
         const r = descend(kin, fromReach(fig, limb, t, pole, twist), t);
         kin.fk(r.x);
         fig.root.updateMatrixWorld(true);
-        const cost = home({ fig, kind: limb }).distanceToSquared(at) + 4 * armPenetration(fig, limb, obs);
+        const cost = endOf(fig, limb).distanceToSquared(at) + 4 * armPenetration(fig, limb, obs);
         if (cost < best.cost) best = { x: r.x, cost };
       }
     }
@@ -450,7 +475,7 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
     const at = ctx.apply.resolve(op.to, op.offset);
     solveLimb(fig, { limb: op.limb, at, pole: poleOf(fig, op.limb), twist });
     if (op.limb.endsWith('Hand')) avoidReach(fig, op.limb, at, twist, poleOf(fig, op.limb));
-    const err = home({ fig, kind: op.limb }).distanceTo(at);
+    const err = endOf(fig, op.limb).distanceTo(at);
     return err > 0.03 ? `${op.who}.${op.limb} は ${Math.round(err * 100)}cm 届かない` : null;
   };
 
@@ -700,7 +725,8 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
     fig.root.updateMatrixWorld(true);
   }
 
-  function solve({ h: { fig, kind }, cur, chest0, limbs, torso, shift, body }) {
+  function solve({ h: { fig, kind }, cur, chest0, limbs, torso, shift, body, tip }) {
+    if (tip) return aimTip(fig, cur, tip);
     if (POLE[kind]) return swivel(fig, POLE[kind], cur, limbs[0]);
     if (shift) return shiftHead(fig, cur, shift);
     if (kind === 'head') return aim(fig, cur, chest0);
@@ -718,7 +744,7 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
     overlay: group,
     dragTo(fig, kind, path) {
       const d = { h: { fig, kind }, cur: home({ fig, kind }) };
-      d.limbs = [limbGoal(fig, kind, d.cur)];
+      d.limbs = [handleGoal(fig, kind, d.cur)];
       if (bodyBox.checked) { d.body = bodyStart(fig, kind); d.body.goal = d.limbs[0]; }
       for (const p of path) { d.cur = p.clone(); solve(d); }
     },
@@ -748,7 +774,8 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
     if (TORSO[kind]) drag.torso = { at: TORSO[kind], spine0: fig.getJoint('spine'), chest0: fig.getJoint('chest'), neck0: fig.getJoint('neck'), head0: fig.j.head.getWorldQuaternion(new THREE.Quaternion()) };
     if (kind === 'head' && (e.ctrlKey || e.metaKey)) drag.shift = { neck0: fig.getJoint('neck'), head0: fig.getJoint('head'), from: drag.cur.clone() };
     const pin = kind === 'hips' && (e.altKey || pinBox.checked);
-    drag.limbs = CHAIN[kind] ? [limbGoal(fig, kind, drag.cur)]
+    if (TIP[kind]) drag.tip = { joint: TIP[kind], q0: fig.j[TIP[kind]].getWorldQuaternion(new THREE.Quaternion()), from: drag.cur.clone().sub(wpos(fig.j[TIP[kind]])) };
+    drag.limbs = CHAIN[kind] ? [handleGoal(fig, kind, drag.cur)]
       : POLE[kind] ? [{ ...limbGoal(fig, POLE[kind], wpos(fig.j[CHAIN[POLE[kind]][2]])), wrist: true }]
       : pin ? ['leftFoot', 'rightFoot'].map((l) => limbGoal(fig, l, home({ fig, kind: l }))) : [];
     if (CHAIN[kind] && bodyBox.checked) {
@@ -802,12 +829,13 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
       ctx.refreshSel();
       return;
     }
-    // 動かさずに離したら、ハンドルの下の部位（無ければハンドルの関節）を選ぶ
+    // 動かさずに離したら、手足のハンドル・アンカーは手首・足首を、ほかはハンドルの下の部位（無ければハンドルの関節）を選ぶ
+    if (CHAIN[kind] || TIP[kind]) return ctx.select(fig, CHAIN[kind]?.[2] ?? TIP[kind]);
     const r = canvas.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
     const hit = ray.intersectObjects(Object.values(figs).filter((f) => ctx.pickable(f)).flatMap((f) => f.meshes), false)[0];
     if (hit) ctx.select(hit.object.userData.fig, hit.object.userData.joint);
-    else ctx.select(fig, CHAIN[kind]?.[2] ?? (TORSO[kind] ? 'chest' : kind));
+    else ctx.select(fig, CHAIN[kind]?.[2] ?? TIP[kind] ?? (TORSO[kind] ? 'chest' : kind));
   };
   // ドラッグ中の元に戻すは、その途中の姿勢を壊すので受けない
   addEventListener('keydown', (e) => {
@@ -824,8 +852,9 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
     for (const h of handles) {
       const p = drag?.h === h ? drag.cur : home(h);
       h.mesh.position.copy(p);
-      h.mesh.visible = ctx.pickable(h.fig);
-      h.mesh.scale.setScalar(camera.position.distanceTo(p) * k * (hover === h || drag?.h === h ? 1.4 : 1));
+      const sel = ctx.getSelected();
+      h.mesh.visible = ctx.pickable(h.fig) && (!TIP[h.kind] || (sel?.fig === h.fig && sel.joint === TIP[h.kind]));
+      h.mesh.scale.setScalar(camera.position.distanceTo(p) * k * (TIP[h.kind] ? TIP_SCALE : 1) * (hover === h || drag?.h === h ? 1.4 : 1));
     }
     const active = new Set();
     const sel = ctx.getSelected();
@@ -856,7 +885,7 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
 
   const fs = document.createElement('fieldset');
   fs.innerHTML = '<legend>IKハンドル</legend><label>手足を引くと胴も動く</label><label>腰を動かすとき足を固定</label>'
-    + '<div style="color:#666;font-size:12px">青: 手足、橙: 腰、紫: 背中・桃: 胸（腰を止めて丸める・反らす・傾ける、顔の向きは保つ）、緑: 視線（Ctrl+ドラッグで頭を前後へ出す）<br>ドラッグは画面に平行に動く。手を体の後ろ・前へ回すときは上か横から見るか、Shift+ドラッグ（上下で奥行き）。Alt+腰で足を固定</div>';
+    + '<div style="color:#666;font-size:12px">青: 手首・足首（クリックで選ぶと手先・足先に水色の小さなアンカーが出て、引くと手首・足首を止めたまま手・足の向きを変える）、橙: 腰、紫: 背中・桃: 胸（腰を止めて丸める・反らす・傾ける、顔の向きは保つ）、緑: 視線（Ctrl+ドラッグで頭を前後へ出す）<br>ドラッグは画面に平行に動く。手を体の後ろ・前へ回すときは上か横から見るか、Shift+ドラッグ（上下で奥行き）。Alt+腰で足を固定</div>';
   const labels = fs.querySelectorAll('label');
   labels[0].append(bodyBox);
   labels[1].append(pinBox);
