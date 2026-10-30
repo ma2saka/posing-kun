@@ -29,16 +29,18 @@ export const BODY = {
   },
 };
 
-// 関節の種類。semantic の 3 要素の意味:
-//   axial    [前屈, 自分の左へ傾く, 自分の左へひねる]
-//   clavicle [すくめる（肩先を上げる）, 肩先を前へ出す（負で胸を開く）, -]。胸鎖関節が支点。肩はこの先にぶら下がる
-//   shoulder [前へ上げる, 横へ上げる, 内へひねる]
-//   elbow    [曲げる, -, 前腕を内へひねる]
-//   wrist    [手のひら側へ曲げる, 小指側へ曲げる, 手のひらを内へ返す]
-//   hip      [脚を前へ上げる, 外へ開く, 外へひねる]
-//   knee     [曲げる, -, -]
-//   ankle    [つま先を下げる, 足裏を内へ向ける, つま先を内へ向ける]
-//   toe      [指の付け根を反らす（つま先立ち）, -, -]
+// 関節の種類ごとの semantic の 3 要素の意味（'-' は動かない軸）。clavicle は胸鎖関節が支点で、肩はこの先にぶら下がる
+export const AXES = {
+  axial: ['前屈', '自分の左へ傾く', '自分の左へひねる'],
+  clavicle: ['すくめる（肩先を上げる）', '肩先を前へ出す（負で胸を開く）', '-'],
+  shoulder: ['前へ上げる', '横へ上げる', '内へひねる'],
+  elbow: ['曲げる', '-', '前腕を内へひねる'],
+  wrist: ['手のひら側へ曲げる', '小指側へ曲げる', '手のひらを内へ返す'],
+  hip: ['脚を前へ上げる', '外へ開く', '外へひねる'],
+  knee: ['曲げる', '-', '-'],
+  ankle: ['つま先を下げる', '足裏を内へ向ける', 'つま先を内へ向ける'],
+  toe: ['指の付け根を反らす（つま先立ち）', '-', '-'],
+};
 export const JOINTS = {
   spine: 'axial', chest: 'axial', neck: 'axial', head: 'axial',
   leftClavicle: 'clavicle', leftShoulder: 'shoulder', leftElbow: 'elbow', leftWrist: 'wrist',
@@ -47,7 +49,7 @@ export const JOINTS = {
   rightHip: 'hip', rightKnee: 'knee', rightAnkle: 'ankle', rightToe: 'toe',
 };
 
-const LIMITS = {
+export const LIMITS = {
   axial: [[-60, 90], [-45, 45], [-70, 70]],
   clavicle: [[-10, 40], [-30, 30], [0, 0]],
   shoulder: [[-60, 180], [-30, 180], [-90, 90]],

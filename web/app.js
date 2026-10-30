@@ -251,14 +251,24 @@ function resize() {
   outlineUniforms.uPx.value = 1.6 * devicePixelRatio;
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
-// 体型・姿勢・手の形の対象を切り替える欄
+// 体型・姿勢・手の形の対象を切り替える欄。WebMCP の宣言的な道具（フォーム）としてもエージェントから選べる
 function whoPicker() {
   const fs = document.createElement('fieldset');
   fs.innerHTML = '<legend>編集する人形</legend>';
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:12px';
+  const row = document.createElement('form');
+  row.style.cssText = 'display:flex;gap:12px;margin:0';
+  row.setAttribute('toolname', 'choose_doll_to_edit');
+  row.setAttribute('tooldescription', '右の欄の体型・姿勢・手の形で編集する人形を選ぶ');
+  row.setAttribute('toolautosubmit', '');
+  row.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const w = new FormData(row).get('who');
+    setWho(w);
+    if (e.agentInvoked) e.respondWith(Promise.resolve(`編集する人形: ${who}`));
+  });
   const radios = Object.entries({ female: '女性', male: '男性' }).map(([w, name]) => {
     const r = Object.assign(document.createElement('input'), { type: 'radio', name: 'who', value: w, checked: w === who });
+    r.setAttribute('toolparamdescription', 'female は女性、male は男性');
     r.addEventListener('change', () => setWho(w));
     const l = document.createElement('label');
     l.append(r, name);

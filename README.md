@@ -26,6 +26,19 @@ cd web && python3 -m http.server 8000
 # http://localhost:8000/
 ```
 
+## エージェントから操作する
+
+ブラウザが WebMCP（`document.modelContext`）に対応していれば、ページを開いた時点で道具が登録されます。対応していないブラウザでも、ページの JavaScript から同じ道具を呼べます。
+
+```js
+posingKun.tools                       // 道具の一覧（name, description, inputSchema）
+await posingKun.call('get_reference') // 関節の名前・角度の意味・可動域
+await posingKun.call('set_joints', { who: 'male', joints: { leftElbow: [90], head: [0, 0, 30] } })
+await posingKun.call('reach', { who: 'male', limb: 'rightHand', to: { who: 'female', part: 'leftShoulder' } })
+```
+
+道具: `get_scene` `get_reference` `set_joints` `reach` `look_at` `set_pose_preset` `place_doll` `face_toward` `set_hand` `set_body` `set_posture` `set_camera` `show_dolls` `add_prop` `update_prop` `remove_prop` `undo` `reset_scene` `run_ops`。どれも「元に戻す」で戻せます。「編集する人形」の欄は宣言的な道具（`<form toolname="choose_doll_to_edit">`）です。
+
 ## ライセンス
 
 MIT

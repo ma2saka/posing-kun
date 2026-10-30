@@ -9,5 +9,6 @@ import focus from './focus.js';
 import hair from './hair.js';
 import depth from './depth.js';
 import room from './room.js';
+import webmcp from './webmcp.js';
 
-export default [body, posture, hands, ikdrag, lens, anatomy, focus, hair, room, depth];
+export default [body, posture, hands, ikdrag, lens, anatomy, focus, hair, room, depth, webmcp];
