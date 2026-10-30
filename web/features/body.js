@@ -57,7 +57,6 @@ const ADJUST = [
 // 以前の「太さ」。筋肉と脂肪の両方に同じ値を掛ける（古い保存状態と操作の互換）
 const LEGACY_THICK = 'thick';
 const keysOf = (who) => ADJUST.filter(([k]) => !k.startsWith('bust') || BODY[who].bust);
-const LABEL = { female: '女性', male: '男性' };
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 const mul = (v, k) => v.map((x, i) => x * (Array.isArray(k) ? k[i] : k));
@@ -169,14 +168,15 @@ export default function init(ctx) {
 
   const fs = document.createElement('fieldset');
   fs.innerHTML = '<legend>体型</legend>';
+  const boxes = {};
   for (const [who, fig] of Object.entries(figs)) {
     const box = document.createElement('div');
-    box.style.cssText = 'border-top: 1px solid #ddd; padding-top: 4px; margin-top: 4px;';
+    boxes[who] = box;
     const sel = document.createElement('select');
     sel.dataset.who = who;
     sel.innerHTML = Object.keys(PRESETS[who]).map((n) => `<option>${n}</option>`).join('');
     const head = document.createElement('label');
-    head.append(LABEL[who], sel);
+    head.append('種類', sel);
     box.append(head);
     sel.addEventListener('change', () => {
       ctx.pushUndo();
@@ -213,5 +213,9 @@ export default function init(ctx) {
     ui[who](current(fig));
     fs.append(box);
   }
+  // 編集する人形の分だけ見せる
+  const show = (w) => { for (const [k, b] of Object.entries(boxes)) b.hidden = k !== w; };
+  ctx.onWho(show);
+  show(ctx.who);
   ctx.panel.append(fs);
 }

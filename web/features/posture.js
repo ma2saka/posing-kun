@@ -4,7 +4,6 @@ import { Figure } from '../figure.js';
 
 const KEYS = [['chest', '背を丸める ⟷ 胸を開く', -1, 1], ['shrug', '肩をすくめる', 0, 1], ['neck', '首を前に出す', 0, 1]];
 const RHYTHM = 'posing-kun.posture.rhythm';
-const LABEL = { female: '女性', male: '男性' };
 
 export default function init(ctx) {
   const { figs, apply } = ctx;
@@ -53,11 +52,11 @@ export default function init(ctx) {
   rl.append('肩甲骨の連動', rh);
   fs.append(rl);
   setRhythm(on);
+  const boxes = {};
 
   for (const [who, fig] of Object.entries(figs)) {
     const box = document.createElement('div');
-    box.style.cssText = 'border-top: 1px solid #ddd; padding-top: 4px; margin-top: 4px;';
-    box.append(LABEL[who] ?? who);
+    boxes[who] = box;
     const sliders = {};
     for (const [k, name, lo, hi] of KEYS) {
       const out = document.createElement('span');
@@ -84,5 +83,8 @@ export default function init(ctx) {
     ui[who]();
     fs.append(box);
   }
+  const show = (w) => { for (const [k, b] of Object.entries(boxes)) b.hidden = k !== w; };
+  ctx.onWho(show);
+  show(ctx.who);
   ctx.panel.append(fs);
 }

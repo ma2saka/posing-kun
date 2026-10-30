@@ -123,6 +123,14 @@ tc.addEventListener('objectChange', () => {
 });
 
 const selectHooks = [];
+// 体型・姿勢・手の形を編集する人形。人形の部位を選ぶとその人形に替わる
+let who = 'male';
+const whoHooks = [];
+function setWho(w) {
+  if (!figs[w] || w === who) return;
+  who = w;
+  for (const h of whoHooks) h(w);
+}
 // 選択・ドラッグできる人形か（表示と、もう片方を操作中かで features が決める）
 let pickable = () => true;
 // 指は手首として選ぶ（手首を起点に手全体を回す）
@@ -130,6 +138,7 @@ const asJoint = (j) => j?.replace(/^(left|right)(Thumb|Index|Middle|Ring|Pinky)\
 function select(fig, joint) {
   joint = asJoint(joint);
   for (const h of selectHooks) h(fig);
+  if (fig) setWho(fig.who);
   for (const f of Object.values(figs)) f.setTint(null);
   if (propSel) {
     propSel.setTint(false);
@@ -242,6 +251,24 @@ function resize() {
   outlineUniforms.uPx.value = 1.6 * devicePixelRatio;
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
+// 体型・姿勢・手の形の対象を切り替える欄
+function whoPicker() {
+  const fs = document.createElement('fieldset');
+  fs.innerHTML = '<legend>編集する人形</legend>';
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:12px';
+  const radios = Object.entries({ female: '女性', male: '男性' }).map(([w, name]) => {
+    const r = Object.assign(document.createElement('input'), { type: 'radio', name: 'who', value: w, checked: w === who });
+    r.addEventListener('change', () => setWho(w));
+    const l = document.createElement('label');
+    l.append(r, name);
+    row.append(l);
+    return r;
+  });
+  whoHooks.push((w) => { for (const r of radios) r.checked = r.value === w; });
+  fs.append(row);
+  $('panel').append(fs);
+}
 // ---- 機能の差し込み
 let render = () => renderer.render(scene, camera);
 const frameHooks = [], afterHooks = [];
@@ -252,6 +279,9 @@ const ctx = {
   bar: $('barView'), panel: $('panel'),
   pushUndo, persist, refreshSel, select, setView, getSelected: () => selected,
   onSelect(fn) { selectHooks.push(fn); },
+  get who() { return who; },
+  setWho,
+  onWho(fn) { whoHooks.push(fn); },
   get pickable() { return pickable; },
   set pickable(fn) { pickable = fn; },
   setRender(fn) { render = fn; },
@@ -259,6 +289,11 @@ const ctx = {
   afterRender(fn) { afterHooks.push(fn); },
 };
 for (const init of features) init(ctx);
+whoPicker();
+// 右の欄の並び
+const ORDER = ['人形', 'カメラ', 'IKハンドル', '編集する人形', '体型', '姿勢', '手の形', '小物'];
+const rank = (fs) => { const i = ORDER.indexOf(fs.querySelector('legend')?.textContent); return i < 0 ? ORDER.length : i; };
+ctx.panel.append(...[...ctx.panel.children].sort((a, b) => rank(a) - rank(b)));
 load();
 setView('diag');
 

@@ -99,12 +99,12 @@ const blend = ({ shape, amount }) => Object.fromEntries(['thumb', 'index', 'midd
   .map((f) => [f, lerp(OPEN[f], SHAPES[shape][f], amount)]));
 
 const html = `<legend>手の形</legend>
-<label>人形 <select data-k="who"><option value="female">女性</option><option value="male">男性</option></select></label>
 <label>手 <select data-k="hand"><option value="both">両方</option><option value="left">左</option><option value="right">右</option></select></label>
 <label>形 <select data-k="shape">${Object.entries(SHAPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></label>
 <label>握り具合 <input data-k="amount" type="range" min="0" max="100"></label>`;
 
-export default function init({ figs, apply, panel, pushUndo, persist, camera, canvas, getSelected, onFrame, tc }) {
+export default function init(ctx) {
+  const { figs, apply, panel, pushUndo, persist, camera, canvas, getSelected, onFrame, tc } = ctx;
   const state = new Map();
   const relaxed = { shape: 'relaxed', amount: 1 };
   const get = (fig) => state.get(fig) ?? { left: relaxed, right: relaxed };
@@ -144,19 +144,19 @@ export default function init({ figs, apply, panel, pushUndo, persist, camera, ca
   const el = Object.fromEntries([...box.querySelectorAll('[data-k]')].map((e) => [e.dataset.k, e]));
   const sync = () => {
     if (target) label();
-    const h = get(figs[el.who.value])[el.hand.value === 'right' ? 'right' : 'left'];
+    const h = get(figs[ctx.who])[el.hand.value === 'right' ? 'right' : 'left'];
     el.shape.value = h.shape;
     el.amount.value = Math.round(h.amount * 100);
   };
   const fromUI = () => {
-    const f = figs[el.who.value];
+    const f = figs[ctx.who];
     keepGround([f], () => { for (const s of sides(el.hand.value)) setHand(f, s, { shape: el.shape.value, amount: el.amount.value / 100 }); });
   };
   // スライダーの操作は、つかむかフォーカスが外れるまでを一回の取り消し単位にする
   let armed = false;
   const begin = () => { if (!armed) pushUndo(); armed = true; };
   const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
-  el.who.addEventListener('change', sync);
+  ctx.onWho(sync);
   el.hand.addEventListener('change', sync);
   el.shape.addEventListener('change', () => { armed = false; pushUndo(); el.amount.value = 100; fromUI(); persist(); });
   el.amount.addEventListener('pointerdown', () => { armed = false; begin(); });
@@ -178,7 +178,6 @@ export default function init({ figs, apply, panel, pushUndo, persist, camera, ca
     const next = ORDER[(ORDER.indexOf(get(f)[side].shape) + 1) % ORDER.length];
     pushUndo();
     keepGround([f], () => setHand(f, side, { shape: next, amount: 1 }));
-    el.who.value = f.who;
     el.hand.value = side;
     sync();
     label();
