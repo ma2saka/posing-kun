@@ -51,7 +51,7 @@ export const SHAPES = {
   },
   gun: {
     label: '銃を握る', held: 'gun', thumb: [40, 60, 0, 10, 20],
-    index: [5, 5, 0, 0], middle: [75, 85, 40, 0], ring: [75, 85, 40, -2], pinky: [75, 85, 40, -4],
+    index: [40, 45, 15, 0], middle: [75, 85, 40, 0], ring: [75, 85, 40, -2], pinky: [75, 85, 40, -4],
   },
   claw: {
     label: '爪を立てる', thumb: [45, 35, 0, 30, 45],
