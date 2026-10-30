@@ -1,14 +1,16 @@
 // 髪: 頭頂から垂れる房を横に並べてつないだ 1 枚の面。顔の向きが見てわかる程度の簡単な形。
 //   頭皮の上の点は頭に固定し、その先は毎フレーム 重力 → 元の形へ戻す → 房の長さ → 隣の房との間隔 → 体の外へ押し出す を繰り返して置く。
 //   座標は頭の関節のローカル（体の倍率の前、+Z が顔、Y が上）。女性はあごまでのボブと眉の上の前髪、男性は生え際までの短髪。
-//   頭の形は皮膚の頭の頂点から作る方向ごとの半径の表（皮膚が無いうちは楕円体）。髪を植える頭皮と頭の当たりの両方に使う。
+//   頭の形は人形の頭（doll.js の頭蓋・顔・あご）から作る方向ごとの半径の表。髪を植える頭皮と頭の当たりの両方に使う。
 const D2R = Math.PI / 180;
 const COLS = 56, ROWS = 20, SCALP_ROWS = 9;
 // 静止形で隣の房とこれより離れた段はつながない（長い横髪と短い前髪の間の面が顔の前に張る）
 const GAP = 0.03;
-// 頭の形の中心と、皮膚が無いときの楕円体（anatomy.js の cranium に皮膚の厚み）
+import { dollSegments } from '../doll.js';
+import { partDist } from '../skin/sdf.js';
+
+// 頭の形の中心
 const C = [0, 0.11, -0.005];
-const FALLBACK_R = [0.08, 0.105, 0.1];
 // 髪の厚み（頭皮から浮かせる量）
 const THICK = 0.005;
 
@@ -37,13 +39,21 @@ const dirOf = (thDeg, phiDeg) => {
   return [Math.sin(a) * Math.sin(p), Math.cos(a), -Math.sin(a) * Math.cos(p)];
 };
 
-// 頭の形: C から見た方向ごとの頭の表面までの半径（楕円体 FALLBACK_R）。極角 NT × 方位 NP の表
+// 頭の形: C から見た方向ごとの、人形の頭の表面までの半径。極角 NT × 方位 NP の表
 const NT = 24, NP = 48;
-function headShape() {
+function headShape(fig) {
+  // 人形の頭の部品（最初の頭の部品が頭蓋・後頭部・顔・あご。鼻と耳は除く）。滑らかな結合の分だけ少し外へ
+  const parts = dollSegments(fig).segs.find((sg) => sg.joint === 'head').parts;
+  const inside = (x, y, z) => Math.min(...parts.map((pt) => partDist(pt, x, y, z))) - 0.004 < 0;
   const r = new Float32Array(NT * NP);
   for (let t = 0; t < NT; t++) for (let p = 0; p < NP; p++) {
     const d = dirOf(((t + 0.5) * 180) / NT, -180 + ((p + 0.5) * 360) / NP);
-    r[t * NP + p] = 1 / Math.hypot(d[0] / FALLBACK_R[0], d[1] / FALLBACK_R[1], d[2] / FALLBACK_R[2]);
+    let lo = 0, hi = 0.2;
+    for (let i = 0; i < 18; i++) {
+      const m = (lo + hi) / 2;
+      if (inside(C[0] + d[0] * m, C[1] + d[1] * m, C[2] + d[2] * m)) lo = m; else hi = m;
+    }
+    r[t * NP + p] = lo;
   }
   return r;
 }
@@ -116,7 +126,7 @@ export default function init(ctx) {
   const hairs = new Map();
   function build(fig) {
     const style = STYLE[fig.who] ?? STYLE.female;
-    const R = headShape();
+    const R = headShape(fig);
     const cols = restStrands(style, R, THREE);
     const across = cols.map((pts, c) => pts.map((p, i) => p.distanceTo(cols[(c + 1) % COLS][i])));
     const joined = across.map((row) => row.map((x) => x < GAP));
