@@ -2,6 +2,8 @@
 
 ブラウザで動く、ポーズ作りの道具です。マネキンの造形で、IK ハンドルとギズモで手で動かします。ControlNetの入力に使ったりできます。
 
+![posing-kun の画面](docs/image1.png)
+
 HTML/JSのみで実装されています。three.js の取得だけ CDN（jsdelivr）から行いますが、それ以外の外部通信はありません。
 
 100% AI Coding
