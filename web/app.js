@@ -100,6 +100,7 @@ let selected = null; // {fig, joint}
 let propSel = null; // 選んだ小物（人形の選択とは同時に持たない）
 const propHooks = [];
 let rootMode = 'rotate';
+let propMode = 'translate'; // 小物は動かすことが多いので移動から
 tc.addEventListener('dragging-changed', (e) => {
   orbit.enabled = !e.value;
   if (e.value) pushUndo(); else persist();
@@ -130,6 +131,7 @@ function select(fig, joint) {
     for (const h of propHooks) h(null);
   }
   Object.assign(tc, { showX: true, showY: true, showZ: true });
+  modeLabel();
   selected = fig ? { fig, joint } : null;
   if (!fig) { tc.detach(); refreshSel(); return; }
   fig.setTint(joint);
@@ -149,8 +151,9 @@ function selectProp(p) {
   refreshSel();
 }
 function propGizmo() {
-  tc.setMode(rootMode);
-  Object.assign(tc, rootMode === 'rotate' ? { showX: false, showY: true, showZ: false } : { showX: true, showY: false, showZ: true });
+  tc.setMode(propMode);
+  modeLabel();
+  Object.assign(tc, propMode === 'rotate' ? { showX: false, showY: true, showZ: false } : { showX: true, showY: false, showZ: true });
 }
 function refreshSel() {
   if (propSel) {
@@ -166,10 +169,20 @@ function refreshSel() {
 }
 $('mode').addEventListener('click', toggleRootMode);
 function toggleRootMode() {
-  rootMode = rootMode === 'rotate' ? 'translate' : 'rotate';
-  $('mode').textContent = `ギズモ: ${rootMode === 'rotate' ? '回転' : '移動'}`;
+  const flip = (m) => (m === 'rotate' ? 'translate' : 'rotate');
+  if (propSel) {
+    propMode = flip(propMode);
+    propGizmo();
+    return;
+  }
+  rootMode = flip(rootMode);
+  modeLabel();
   if (selected?.joint === 'hips') tc.setMode(rootMode);
-  if (propSel) propGizmo();
+}
+// ボタンは今選んでいるもの（小物か人形の腰）の切り替えを示す
+function modeLabel() {
+  const m = propSel ? propMode : rootMode;
+  $('mode').textContent = `ギズモ: ${m === 'rotate' ? '回転' : '移動'}`;
 }
 
 const ray = new THREE.Raycaster();
