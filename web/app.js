@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { Figure, JOINTS, outlineUniforms } from './figure.js';
 import { createOps } from './ops.js';
+import { createProps } from './props.js';
 import features from './features/index.js';
 
 const $ = (id) => document.getElementById(id);
@@ -39,6 +40,7 @@ orbit.enableDamping = true;
 const figs = { female: new Figure('female'), male: new Figure('male') };
 for (const f of Object.values(figs)) scene.add(f.root);
 const apply = createOps(figs);
+const props = createProps(scene);
 
 const INITIAL = [
   { op: 'place', who: 'female', pos: [0.4, null, 0], rot: [0, 0, 0] },
@@ -48,8 +50,16 @@ const INITIAL = [
 ];
 
 // ---- 状態と元に戻す
-const snapshot = () => Object.fromEntries(Object.entries(figs).map(([w, f]) => [w, f.getState()]));
-const restore = (s) => { for (const [w, st] of Object.entries(s)) figs[w]?.setState(st); refreshSel(); persist(); };
+const snapshot = () => ({ ...Object.fromEntries(Object.entries(figs).map(([w, f]) => [w, f.getState()])), props: props.getState() });
+const restore = (s) => {
+  if (propSel) select(null);
+  for (const [w, st] of Object.entries(s)) {
+    if (w === 'props') props.setState(st);
+    else figs[w]?.setState(st);
+  }
+  refreshSel();
+  persist();
+};
 const undoStack = [];
 const pushUndo = () => { undoStack.push(snapshot()); if (undoStack.length > 100) undoStack.shift(); };
 const persist = () => { try { localStorage.setItem('posing-kun.scene', JSON.stringify(snapshot())); } catch { /* 保存できなくても動く */ } };
@@ -87,6 +97,8 @@ tc.setSpace('local');
 tc.setSize(0.7);
 scene.add(tc.getHelper());
 let selected = null; // {fig, joint}
+let propSel = null; // 選んだ小物（人形の選択とは同時に持たない）
+const propHooks = [];
 let rootMode = 'rotate';
 tc.addEventListener('dragging-changed', (e) => {
   orbit.enabled = !e.value;
@@ -94,6 +106,7 @@ tc.addEventListener('dragging-changed', (e) => {
 });
 // ギズモで回した関節も可動域に収める（範囲外のまま置くと、次に IK で引いたとき範囲内へ飛ぶ）
 tc.addEventListener('objectChange', () => {
+  propSel?.settle();
   if (selected && selected.joint !== 'hips') {
     const { fig, joint } = selected;
     fig.setJoint(joint, fig.getJoint(joint));
@@ -111,6 +124,12 @@ function select(fig, joint) {
   joint = asJoint(joint);
   for (const h of selectHooks) h(fig);
   for (const f of Object.values(figs)) f.setTint(null);
+  if (propSel) {
+    propSel.setTint(false);
+    propSel = null;
+    for (const h of propHooks) h(null);
+  }
+  Object.assign(tc, { showX: true, showY: true, showZ: true });
   selected = fig ? { fig, joint } : null;
   if (!fig) { tc.detach(); refreshSel(); return; }
   fig.setTint(joint);
@@ -118,7 +137,27 @@ function select(fig, joint) {
   tc.setMode(joint === 'hips' ? rootMode : 'rotate');
   refreshSel();
 }
+// 小物は床の上の移動と縦軸の回転だけ（M で切り替え）
+function selectProp(p) {
+  select(null);
+  if (!p) return;
+  propSel = p;
+  p.setTint(true);
+  tc.attach(p.mesh);
+  propGizmo();
+  for (const h of propHooks) h(p);
+  refreshSel();
+}
+function propGizmo() {
+  tc.setMode(rootMode);
+  Object.assign(tc, rootMode === 'rotate' ? { showX: false, showY: true, showZ: false } : { showX: true, showY: false, showZ: true });
+}
 function refreshSel() {
+  if (propSel) {
+    const st = propSel.getState();
+    $('sel').textContent = `${propSel.label} 幅 ${st.size[0]} 高さ ${st.size[1]} 奥行き ${st.size[2]}（M で移動/回転）`;
+    return;
+  }
   if (!selected) { $('sel').textContent = '人形の部位をクリックすると関節を選択（Esc で解除）'; return; }
   const { fig, joint } = selected;
   const st = fig.getState();
@@ -130,6 +169,7 @@ function toggleRootMode() {
   rootMode = rootMode === 'rotate' ? 'translate' : 'rotate';
   $('mode').textContent = `ギズモ: ${rootMode === 'rotate' ? '回転' : '移動'}`;
   if (selected?.joint === 'hips') tc.setMode(rootMode);
+  if (propSel) propGizmo();
 }
 
 const ray = new THREE.Raycaster();
@@ -139,8 +179,9 @@ canvas.addEventListener('pointerup', (e) => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4 || tc.dragging) return;
   const r = canvas.getBoundingClientRect();
   ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-  const hit = ray.intersectObjects(Object.values(figs).filter((f) => pickable(f)).flatMap((f) => f.meshes), false)[0];
-  if (hit) select(hit.object.userData.fig, hit.object.userData.joint);
+  const hit = ray.intersectObjects([...Object.values(figs).filter((f) => pickable(f)).flatMap((f) => f.meshes), ...props.meshes()], false)[0];
+  if (hit?.object.userData.prop) selectProp(hit.object.userData.prop);
+  else if (hit) select(hit.object.userData.fig, hit.object.userData.joint);
   else if (!tc.axis) select(null);
 });
 addEventListener('keydown', (e) => {
@@ -184,9 +225,11 @@ function resize() {
 new ResizeObserver(resize).observe(canvas.parentElement);
 // ---- 機能の差し込み
 let render = () => renderer.render(scene, camera);
-const frameHooks = [];
+const frameHooks = [], afterHooks = [];
 const ctx = {
-  THREE, scene, camera, renderer, canvas, orbit, tc, figs, apply,
+  THREE, scene, camera, renderer, canvas, orbit, tc, figs, apply, props, selectProp,
+  getSelectedProp: () => propSel,
+  onPropSelect(fn) { propHooks.push(fn); },
   bar: $('barView'), panel: $('panel'),
   pushUndo, persist, refreshSel, select, setView, getSelected: () => selected,
   onSelect(fn) { selectHooks.push(fn); },
@@ -194,6 +237,7 @@ const ctx = {
   set pickable(fn) { pickable = fn; },
   setRender(fn) { render = fn; },
   onFrame(fn) { frameHooks.push(fn); },
+  afterRender(fn) { afterHooks.push(fn); },
 };
 for (const init of features) init(ctx);
 load();
@@ -203,6 +247,7 @@ renderer.setAnimationLoop(() => {
   for (const f of Object.values(figs)) f.root.traverse((o) => { if (o.isMesh) o.castShadow = !o.material.isShaderMaterial; });
   for (const f of frameHooks) f();
   render();
+  for (const f of afterHooks) f();
 });
 
 window.pp = { figs, apply, snapshot, setView, JOINTS, ctx };

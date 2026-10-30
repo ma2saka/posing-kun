@@ -22,18 +22,20 @@ export default function init(ctx) {
         if (!on && o.userData.ghostVis !== undefined) { o.visible = o.userData.ghostVis; delete o.userData.ghostVis; }
         return;
       }
-      if (!m.color || !!m.userData.ghost === on) return;
-      if (on) {
-        m.userData.ghost = { color: m.color.clone(), opacity: m.opacity, transparent: m.transparent, depthWrite: m.depthWrite };
-        m.color.copy(gray);
-        Object.assign(m, { opacity: Math.min(m.opacity, GHOST.opacity), transparent: true, depthWrite: false });
-      } else {
-        const g = m.userData.ghost;
-        m.color.copy(g.color);
-        Object.assign(m, { opacity: g.opacity, transparent: g.transparent, depthWrite: g.depthWrite });
-        delete m.userData.ghost;
+      for (const m of [].concat(o.material)) {
+        if (!m.color || !!m.userData.ghost === on) continue;
+        if (on) {
+          m.userData.ghost = { color: m.color.clone(), opacity: m.opacity, transparent: m.transparent, depthWrite: m.depthWrite };
+          m.color.copy(gray);
+          Object.assign(m, { opacity: Math.min(m.opacity, GHOST.opacity), transparent: true, depthWrite: false });
+        } else {
+          const g = m.userData.ghost;
+          m.color.copy(g.color);
+          Object.assign(m, { opacity: g.opacity, transparent: g.transparent, depthWrite: g.depthWrite });
+          delete m.userData.ghost;
+        }
+        m.needsUpdate = true;
       }
-      m.needsUpdate = true;
     });
   }
   // 皮膚の作り直しや表示の切り替えで material が替わるので毎フレーム合わせる

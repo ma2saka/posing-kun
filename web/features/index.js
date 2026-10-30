@@ -8,5 +8,6 @@ import posture from './posture.js';
 import focus from './focus.js';
 import hair from './hair.js';
 import depth from './depth.js';
+import room from './room.js';
 
-export default [body, posture, hands, ikdrag, lens, anatomy, focus, hair, depth];
+export default [body, posture, hands, ikdrag, lens, anatomy, focus, hair, room, depth];

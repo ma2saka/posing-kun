@@ -352,6 +352,7 @@ function spineTable(spine, M) {
 // 股関節まわり（骨盤・お尻・左右の太もも）を、姿勢を取った位置で一つの距離場に溶け合わせ、股関節の角度が変わったら面を取り直す。
 // お尻は股関節の回転の GLUTE_FOLLOW だけ太ももについていく。形は腰の座標で組み、腰の骨に付ける
 const GLUTE_FOLLOW = 0.5;
+const HIP_JOINTS = ['hips', 'leftHip', 'rightHip'];
 const K_HIP = { 'pelvis|thigh': 0.035, 'glute|thigh': 0.07, 'glute|pelvis': 0.05, 'glute|glute': 0, 'thigh|thigh': 0, 'pelvis|pelvis': 0.03 };
 function hipRegion(fig, hipSegs) {
   const mat = (m) => new THREE.Matrix4().set(...m, 0, 0, 0, 1);
@@ -423,20 +424,34 @@ function hipRegion(fig, hipSegs) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(m.position, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(m.normal, 3));
-    g.setIndex(new THREE.BufferAttribute(m.index, 1));
+    // 三角形を腰と左右の太ももに振り分け、group ごとに材質を分ける（選んだ太ももだけ色を変え、当たった面の group で選ぶ）
+    fig.root.updateMatrixWorld(true);
+    const idx = m.index, pos = m.position, toW = fig.j.hips.matrixWorld, c = V(0, 0, 0), l = V(0, 0, 0);
+    const toThigh = HIP_JOINTS.slice(1).map((j) => fig.j[j].matrixWorld.clone().invert().multiply(toW));
+    const tris = [[], [], []];
+    for (let t = 0; t < idx.length; t += 3) {
+      c.set(0, 0, 0);
+      for (let k = 0; k < 3; k++) c.x += pos[idx[t + k] * 3], c.y += pos[idx[t + k] * 3 + 1], c.z += pos[idx[t + k] * 3 + 2];
+      c.multiplyScalar(1 / 3);
+      let gi = 0;
+      toThigh.forEach((M, i) => { l.copy(c).applyMatrix4(M); if (l.y < -0.04 && Math.hypot(l.x, l.z) < 0.14) gi = i + 1; });
+      tris[gi].push(idx[t], idx[t + 1], idx[t + 2]);
+    }
+    g.setIndex(new THREE.BufferAttribute(Uint32Array.from(tris.flat()), 1));
+    let at = 0;
+    tris.forEach((tr, i) => { g.addGroup(at, tr.length, i); at += tr.length; });
     const old = mesh;
     mesh = fig.mesh(g, fig.j.hips, [0, 0, 0], [1, 1, 1], 'hips');
+    mesh.userData.groupJoints = HIP_JOINTS;
+    mesh.material = HIP_JOINTS.map(() => mesh.material);
     mesh.onBeforeRender = watch;
-    // 選ぶ: 当たった点が太ももの軸の近く（股関節より先）なら、その太ももとして返す
     const cast = mesh.raycast.bind(mesh);
     mesh.raycast = (ray, out) => {
       const n0 = out.length;
       cast(ray, out);
       for (let i = n0; i < out.length; i++) {
-        for (const j of ['leftHip', 'rightHip']) {
-          const l = fig.j[j].worldToLocal(out[i].point.clone());
-          if (l.y < -0.04 && Math.hypot(l.x, l.z) < 0.14) out[i] = { ...out[i], object: pickOf[j] };
-        }
+        const j = HIP_JOINTS[out[i].face.materialIndex];
+        if (j !== 'hips') out[i] = { ...out[i], object: pickOf[j] };
       }
     };
     if (old) {

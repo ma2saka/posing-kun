@@ -715,6 +715,7 @@ const better = (a, b) => (Math.abs(a.err - b.err) > 0.005 ? a.err < b.err : a.co
 
   // ドラッグと同じ順で解く（確認用）: ハンドル kind を world 座標の点の列 path に沿って動かす
   ctx.ik = {
+    overlay: group,
     dragTo(fig, kind, path) {
       const d = { h: { fig, kind }, cur: home({ fig, kind }) };
       d.limbs = [limbGoal(fig, kind, d.cur)];

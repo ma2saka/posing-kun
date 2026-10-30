@@ -413,6 +413,7 @@ export class Figure {
   setTint(joint) {
     for (const m of this.meshes) {
       if (m.userData.proxy) continue;
+      if (m.userData.groupJoints) { m.material = m.userData.groupJoints.map((j) => (j === joint ? this.hiMat() : this.mat)); continue; }
       m.material = m.userData.joint === joint || m.userData.joints?.includes(joint) ? this.hiMat() : this.mat;
     }
   }

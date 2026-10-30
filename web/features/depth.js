@@ -34,8 +34,12 @@ export default function init(ctx) {
   let bg = null;
 
   // 濃淡の邪魔になるもの（輪郭線、格子、床の影、ハンドル、ギズモ）を隠す。輪郭線は ShaderMaterial、ハンドルと線は depthTest を切った材質
+  // IK ハンドルは濃淡の材質を通さず、描いた後に上から重ねる
+  const overlay = ctx.ik?.overlay;
+  let overlayOn = false;
   const hideClutter = () => {
     scene.traverse((o) => {
+      for (let q = o; q; q = q.parent) if (q === overlay) return;
       const m = o.material;
       const clutter = o.isGridHelper || o.type === 'GridHelper' || m?.isShadowMaterial || (m && m.depthTest === false)
         || (o.isMesh && m?.isShaderMaterial && m !== mat) || o.isTransformControlsRoot || o.isLine;
@@ -55,6 +59,7 @@ export default function init(ctx) {
       scene.overrideMaterial = mat;
     } else if (mode === 'off' && was !== 'off') {
       restore();
+      ctx.props.group.visible = true;
       scene.background = bg ?? scene.background;
       scene.overrideMaterial = null;
     }
@@ -64,6 +69,7 @@ export default function init(ctx) {
     if (mode === 'off') return;
     restore();
     hideClutter();
+    if (overlay) { overlayOn = overlay.visible; overlay.visible = false; }
     // 見えている人形の各部品の箱の角を視点の奥行きに直し、その最小と最大を白と黒に割り当てる
     let lo = Infinity, hi = -Infinity;
     const v = new THREE.Vector3(), view = camera.matrixWorldInverse;
@@ -79,7 +85,15 @@ export default function init(ctx) {
         }
       }
     }
+    // 小物は地面含むのときだけ写し、奥行きの範囲にも入れる
+    ctx.props.group.visible = mode === 'ground';
     if (mode === 'ground') {
+      for (const m of ctx.props.meshes()) {
+        for (let i = 0; i < 8; i++) {
+          v.set(i & 1 ? 0.5 : -0.5, i & 2 ? 0.5 : -0.5, i & 4 ? 0.5 : -0.5).applyMatrix4(m.matrixWorld).applyMatrix4(view);
+          lo = Math.min(lo, -v.z); hi = Math.max(hi, -v.z);
+        }
+      }
       floor.geometry.boundingBox ?? floor.geometry.computeBoundingBox();
       const bb = floor.geometry.boundingBox;
       for (let i = 0; i < 4; i++) {
@@ -91,6 +105,15 @@ export default function init(ctx) {
     if (lo === Infinity) return;
     mat.uniforms.uNear.value = Math.max(camera.near, lo);
     mat.uniforms.uFar.value = hi;
+  });
+
+  ctx.afterRender(() => {
+    if (mode === 'off' || !overlay || !overlayOn) return;
+    const { renderer } = ctx;
+    overlay.visible = true;
+    renderer.autoClear = false;
+    renderer.render(overlay, camera);
+    renderer.autoClear = true;
   });
 
   const btn = document.createElement('button');
