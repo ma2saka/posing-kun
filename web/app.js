@@ -100,14 +100,19 @@ let selected = null; // {fig, joint}
 let propSel = null; // 選んだ小物（人形の選択とは同時に持たない）
 const propHooks = [];
 let rootMode = 'rotate';
-let propMode = 'translate'; // 小物は動かすことが多いので移動から
+// 小物のギズモは 移動 → 回転 → 大きさ の順に切り替える。動かすことが多いので移動から
+const PROP_MODES = ['translate', 'rotate', 'scale'];
+let propMode = 'translate';
 tc.addEventListener('dragging-changed', (e) => {
   orbit.enabled = !e.value;
   if (e.value) pushUndo(); else persist();
 });
 // ギズモで回した関節も可動域に収める（範囲外のまま置くと、次に IK で引いたとき範囲内へ飛ぶ）
 tc.addEventListener('objectChange', () => {
-  propSel?.settle();
+  if (propSel) {
+    propSel.settle();
+    for (const h of propHooks) h(propSel);
+  }
   if (selected && selected.joint !== 'hips') {
     const { fig, joint } = selected;
     fig.setJoint(joint, fig.getJoint(joint));
@@ -139,7 +144,7 @@ function select(fig, joint) {
   tc.setMode(joint === 'hips' ? rootMode : 'rotate');
   refreshSel();
 }
-// 小物は床の上の移動と縦軸の回転だけ（M で切り替え）
+// 小物は床の上の移動、縦軸の回転、大きさの変更だけ（M で切り替え）
 function selectProp(p) {
   select(null);
   if (!p) return;
@@ -153,12 +158,12 @@ function selectProp(p) {
 function propGizmo() {
   tc.setMode(propMode);
   modeLabel();
-  Object.assign(tc, propMode === 'rotate' ? { showX: false, showY: true, showZ: false } : { showX: true, showY: false, showZ: true });
+  Object.assign(tc, { translate: { showX: true, showY: false, showZ: true }, rotate: { showX: false, showY: true, showZ: false }, scale: { showX: true, showY: true, showZ: true } }[propMode]);
 }
 function refreshSel() {
   if (propSel) {
     const st = propSel.getState();
-    $('sel').textContent = `${propSel.label} 幅 ${st.size[0]} 高さ ${st.size[1]} 奥行き ${st.size[2]}（M で移動/回転）`;
+    $('sel').textContent = `${propSel.label} 幅 ${st.size[0]} 高さ ${st.size[1]} 奥行き ${st.size[2]}（M で移動/回転/大きさ）`;
     return;
   }
   if (!selected) { $('sel').textContent = '人形の部位をクリックすると関節を選択（Esc で解除）'; return; }
@@ -171,7 +176,7 @@ $('mode').addEventListener('click', toggleRootMode);
 function toggleRootMode() {
   const flip = (m) => (m === 'rotate' ? 'translate' : 'rotate');
   if (propSel) {
-    propMode = flip(propMode);
+    propMode = PROP_MODES[(PROP_MODES.indexOf(propMode) + 1) % PROP_MODES.length];
     propGizmo();
     return;
   }
@@ -182,7 +187,7 @@ function toggleRootMode() {
 // ボタンは今選んでいるもの（小物か人形の腰）の切り替えを示す
 function modeLabel() {
   const m = propSel ? propMode : rootMode;
-  $('mode').textContent = `ギズモ: ${m === 'rotate' ? '回転' : '移動'}`;
+  $('mode').textContent = `ギズモ: ${{ rotate: '回転', translate: '移動', scale: '大きさ' }[m]}`;
 }
 
 const ray = new THREE.Raycaster();

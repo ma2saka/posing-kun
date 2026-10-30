@@ -2,10 +2,11 @@
 import * as THREE from 'three';
 
 export const KINDS = {
-  wall: { label: '壁', size: [3, 2.4, 0.1], at: [0, -0.9], color: 0xe6e6e6 },
+  wall: { label: '壁', size: [6, 2.7, 0.12], at: [0, -1.2], color: 0xe6e6e6 },
   box: { label: '箱', size: [0.5, 0.45, 0.5], at: [1.1, -0.2], color: 0xc8c8c8 },
 };
 const UNIT = new THREE.BoxGeometry(1, 1, 1);
+const MIN_SIZE = 0.02;
 const EDGES = new THREE.EdgesGeometry(UNIT);
 const LINE = new THREE.LineBasicMaterial({ color: 0x555555 });
 const HI = new THREE.MeshLambertMaterial({ color: 0xd9a35a });
@@ -27,7 +28,8 @@ export class Prop {
 
   /** 一部だけ渡してもよい。高さが変わっても底は床に置いたまま */
   set({ size = this.size, pos = [this.mesh.position.x, this.mesh.position.z], ry = this.mesh.rotation.y }) {
-    this.mesh.scale.set(...size);
+    this.mesh.scale.set(...size.map((v) => Math.max(MIN_SIZE, Math.abs(v))));
+    size = this.size;
     this.mesh.position.set(pos[0], size[1] / 2, pos[1]);
     this.mesh.rotation.set(0, ry, 0);
   }
